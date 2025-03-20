@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - ./kafka-data:/var/lib/kafka/data
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mydatabase
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+
+  flyway:
+    image: flyway/flyway:latest
+    container_name: flyway
+    depends_on:
+      - postgres
+    volumes:
+      - ./internal/migrations:/flyway/sql  # Указываем путь к миграциям
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/mydatabase
+      FLYWAY_USER: admin
+      FLYWAY_PASSWORD: password
+      FLYWAY_BASELINE_ON_MIGRATE: "true"
+    command: -locations=filesystem:/flyway/sql -connectRetries=60 migrate
+
+  notification:
+    build: .  # Собираем образ из Dockerfile
+    container_name: notification
+    depends_on:
+      - kafka
+      - postgres
+    ports:
+      - "8080:8080"  # Пробрасываем порт приложения
+    environment:
+      - KAFKA_BROKER=kafka:9092
+      - POSTGRES_HOST=postgres
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=mydatabase
+    volumes:
+      - ./internal/templates:/app/templates  # Монтируем шаблоны, если они нужны
