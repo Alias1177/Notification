@@ -2,6 +2,9 @@ package main
 
 import (
 	"Notification/config"
+	"log/slog"
+	"net/http"
+
 	//connect "Notification/service"
 	"Notification/templates"
 
@@ -13,25 +16,31 @@ import (
 )
 
 func main() {
-	//TODO :настроить конект к бд
 	mid.ColorLogger()
 	cfg, err := config.Loading(".env")
 	if err != nil {
 		panic(err)
 	}
+
 	messageHandler := func(value []byte) {
-		// Здесь вы можете использовать value (Message.Value) как вам нужно
-		// Например, передать его в другие функции или сохранить где-то
 		templates.SendEmail(string(value))
 	}
 
-	cons.KafkaConnect(cfg, messageHandler)
+	// Запускаем Kafka в отдельной горутине
+	go cons.KafkaConnect(cfg, messageHandler)
+
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(mid.Recovery)
-	//db, err := connect.NewPostgresDB(cfg.DSN)
-	//if err != nil {
-	//	panic(err)
-	//}
 
+	// Добавляем эндпоинт для проверки работоспособности
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	})
+
+	// Запускаем HTTP-сервер
+	slog.Info("Сервер запущен на порту :8080")
+	if err := http.ListenAndServe(":8080", r); err != nil {
+		panic(err)
+	}
 }
