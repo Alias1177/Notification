@@ -31,12 +31,10 @@ services:
     build: .  # Собираем образ из Dockerfile
     container_name: notification
     depends_on:
-      - kafka
       - postgres
     ports:
       - "8080:8080"  # Пробрасываем порт приложения
     environment:
-      - KAFKA_BROKER=kafka:9092
       - POSTGRES_HOST=postgres
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password
