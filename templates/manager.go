@@ -37,9 +37,6 @@ func SendEmail(val string) {
 	basePath := filepath.Dir(filename)
 	htmlPath := filepath.Join(basePath, "html", "registration_confirmation.html")
 
-	// Log the path we're trying to use
-	log.Printf("Attempting to read template from: %s", htmlPath)
-
 	// Verify the file exists
 	if _, err := os.Stat(htmlPath); os.IsNotExist(err) {
 		// Try alternative path for Docker or different runtime environments

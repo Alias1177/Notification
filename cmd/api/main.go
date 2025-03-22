@@ -26,14 +26,12 @@ func main() {
 		templates.SendEmail(string(value))
 	}
 
-	// Запускаем Kafka в отдельной горутине
 	go cons.KafkaConnect(cfg, messageHandler)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(mid.Recovery)
 
-	// Добавляем эндпоинт для проверки работоспособности
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("OK"))
 	})
