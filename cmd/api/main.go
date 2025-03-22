@@ -16,6 +16,7 @@ import (
 )
 
 func main() {
+
 	mid.ColorLogger()
 	cfg, err := config.Loading(".env")
 	if err != nil {
