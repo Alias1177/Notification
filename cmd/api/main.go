@@ -2,6 +2,8 @@ package main
 
 import (
 	"Notification/config"
+	//connect "Notification/service"
+	"Notification/templates"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -17,9 +19,19 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	cons.KafkaConnect(cfg)
+	messageHandler := func(value []byte) {
+		// Здесь вы можете использовать value (Message.Value) как вам нужно
+		// Например, передать его в другие функции или сохранить где-то
+		templates.SendEmail(string(value))
+	}
+
+	cons.KafkaConnect(cfg, messageHandler)
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(mid.Recovery)
+	//db, err := connect.NewPostgresDB(cfg.DSN)
+	//if err != nil {
+	//	panic(err)
+	//}
 
 }

@@ -11,10 +11,10 @@ import (
 	"time"
 )
 
-func KafkaConnect(cfg *config.Config) {
-	brokerAddress := cfg.KafkaConnect // Адрес вашего внешнего Kafka-брокера
-	topic := cfg.KafkaTopic           // Имя топика для чтения
-	groupID := cfg.KafkaGroup         // ID группы потребителей
+func KafkaConnect(cfg *config.Config, messageHandler func([]byte)) {
+	brokerAddress := cfg.KafkaConnect
+	topic := cfg.KafkaTopic
+	groupID := cfg.KafkaGroup
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -46,17 +46,18 @@ func KafkaConnect(cfg *config.Config) {
 			// Читаем сообщение
 			message, err := reader.ReadMessage(ctx)
 			if err != nil {
-				// Если контекст отменен, выходим без ошибки
 				if ctx.Err() != nil {
 					return
 				}
 				fmt.Printf("Ошибка чтения сообщения: %v\n", err)
-				time.Sleep(1 * time.Second) // Пауза перед повторной попыткой
+				time.Sleep(1 * time.Second)
 				continue
 			}
 
-			fmt.Printf("Значение: %s\n", string(message.Value)) //затычка
+			fmt.Printf("Значение: %s\n", string(message.Value))
 
+			// Вызываем обработчик, передавая ему значение сообщения
+			messageHandler(message.Value)
 		}
 	}
 }
