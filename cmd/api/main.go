@@ -2,10 +2,10 @@ package main
 
 import (
 	"Notification/config"
+	"Notification/internal/api/handlers"
 	"log/slog"
 	"net/http"
 
-	//connect "Notification/service"
 	"Notification/templates"
 
 	"github.com/go-chi/chi/v5"
@@ -37,9 +37,11 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
-	// Запускаем HTTP-сервер
+	r.Post("/api/forgot", handlers.SendCodeForgotPassword)
+
 	slog.Info("Сервер запущен на порту :8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {
 		panic(err)
 	}
+
 }

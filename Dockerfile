@@ -1,32 +1,39 @@
-# Используем официальный образ Go для сборки
-FROM golang:1.21-alpine AS builder
+# Этап сборки
+FROM golang:1.24-alpine AS builder
 
-# Устанавливаем рабочую директорию внутри контейнера
+# Установка необходимых зависимостей
+RUN apk add --no-cache git
+
+# Установка рабочей директории
 WORKDIR /app
 
-# Копируем файлы go.mod и go.sum для установки зависимостей
-COPY go.mod go.sum ./
+# Копирование файлов go.mod и go.sum
+COPY go.mod ./
+COPY go.sum ./
 
-# Скачиваем зависимости
+# Загрузка зависимостей
 RUN go mod download
 
-# Копируем весь исходный код в контейнер
+# Копирование исходного кода
 COPY . .
 
-# Собираем приложение
-RUN CGO_ENABLED=0 GOOS=linux go build -o notification ./cmd/api
+# Сборка приложения
+RUN CGO_ENABLED=0 GOOS=linux go build -o notification-service ./cmd/api
 
-# Используем минимальный образ Alpine для финального контейнера
+# Финальный этап
 FROM alpine:latest
 
-# Устанавливаем рабочую директорию
-WORKDIR /root/
+# Установка необходимых пакетов
+RUN apk --no-cache add ca-certificates tzdata
 
-# Копируем собранное приложение из стадии builder
-COPY --from=builder /app/notification .
+# Установка рабочей директории
+WORKDIR /app
 
-# Копируем папку templates (если она нужна в runtime)
-COPY --from=builder /app/internal/templates ./templates
+# Копирование исполняемого файла из этапа сборки
+COPY --from=builder /app/notification-service /app/notification-service
 
-# Команда, которая выполняется при запуске контейнера
-CMD ["./notification"]
+# Копирование шаблонов
+COPY --from=builder /app/templates /app/templates
+
+# Запуск приложения
+CMD ["/app/notification-service"]
