@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	github.com/fatih/color v1.18.0
 	github.com/go-chi/chi/v5 v5.2.1
+	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/render v1.0.3
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/jordan-wright/email v4.0.1-0.20210109023952-943e75fe5223+incompatible

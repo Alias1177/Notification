@@ -3,6 +3,7 @@ package main
 import (
 	"Notification/config"
 	"Notification/internal/api/handlers"
+	"github.com/go-chi/cors"
 	"log/slog"
 	"net/http"
 
@@ -32,6 +33,17 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(mid.Recovery)
+
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins: []string{}, // Пустой список (разрешим динамически)
+		AllowOriginFunc: func(r *http.Request, origin string) bool {
+			return true
+		},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}))
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("OK"))
