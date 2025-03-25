@@ -61,3 +61,8 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
       - prometheus
+
+# 👇 Часть, которую вы забыли указать
+volumes:
+  prometheus_data:
+  grafana_data:
