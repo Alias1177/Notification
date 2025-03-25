@@ -1,0 +1,94 @@
+name: Deploy Notification Service CI/CD
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy files to server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_NAME }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "."
+          target: "/opt/notification-service/Notification"
+
+      - name: Check Docker installation
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_NAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /opt/notification-service/Notification
+            
+            # Проверка версии Docker и Docker Compose
+            docker --version
+            which docker-compose || echo "docker-compose not found"
+            docker compose version || echo "docker compose not found"
+
+      - name: Deploy on server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_NAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /opt/notification-service/Notification
+            
+            # Create .env file
+            cat > .env << EOF
+            SECRET=${{ secrets.SECRET }}
+            MAIL=${{ secrets.MAIL }}
+            DATABASE_DSN=${{ secrets.DATABASE_DSN }}
+            KAFKA_PROD=${{ secrets.KAFKA_PROD }}
+            KAFKA_TOPIC=${{ secrets.KAFKA_TOPIC }}
+            GROUPE=${{ secrets.KAFKA_GROUP }}
+            SMTP_HOST=${{ secrets.SMTP_HOST }}
+            SMTP_PORT=${{ secrets.SMTP_PORT }}
+            EOF
+            chmod 600 .env
+            
+            # Проверяем существование файла docker-compose
+            if [ ! -f "docker-compose.yml" ]; then
+              echo "docker-compose.yml not found!"
+              ls -la
+              exit 1
+            fi
+            
+            # Используем docker-compose вместо docker compose, если доступен
+            if command -v docker-compose &> /dev/null; then
+              # Stop all running containers
+              docker-compose down
+            
+              # Build the containers
+              docker-compose build
+            
+              # Start containers
+              docker-compose up -d
+            
+              # Check status
+              sleep 5
+              docker-compose ps
+            else
+              # Попытаемся использовать docker compose (новый синтаксис)
+              # Stop all running containers
+              docker compose down
+            
+              # Build the containers
+              docker compose build
+            
+              # Start containers
+              docker compose up -d
+            
+              # Check status
+              sleep 5
+              docker compose ps
+            fi
