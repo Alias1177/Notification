@@ -44,17 +44,8 @@ jobs:
             cd /opt/notification-service/Notification
             
             # Create .env file
-            cat > .env << EOF
-            SECRET=${{ secrets.SECRET }}
-            MAIL=${{ secrets.MAIL }}
-            DATABASE_DSN=${{ secrets.DATABASE_DSN }}
-            KAFKA_PROD=${{ secrets.KAFKA_PROD }}
-            KAFKA_TOPIC=${{ secrets.KAFKA_TOPIC }}
-            GROUPE=${{ secrets.KAFKA_GROUP }}
-            SMTP_HOST=${{ secrets.SMTP_HOST }}
-            SMTP_PORT=${{ secrets.SMTP_PORT }}
-            EOF
-            chmod 600 .env
+              echo "${{ secrets.ENV}}" > .env
+              chmod 600 .env
             
             # Проверяем существование файла docker-compose
             if [ ! -f "docker-compose.yml" ]; then

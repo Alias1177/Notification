@@ -11,3 +11,4 @@ services:
       - .env
     volumes:
       - ./templates:/app/templates
+      - ./.env:/app/.env # явно монтируем .env внутрь контейнера
