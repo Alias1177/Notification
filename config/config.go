@@ -5,11 +5,9 @@ import (
 	"log"
 )
 
-// brokers := []string{"194.87.95.28:29092"}
 type Config struct {
 	Secret       string `env:"SECRET"`
 	Mail         string `env:"MAIL"`
-	DSN          string `env:"DATABASE_DSN" env-required:"true"`
 	KafkaConnect string `env:"KAFKA_PROD"`
 	KafkaTopic   string `env:"KAFKA_TOPIC"`
 	KafkaGroup   string `env:"GROUPE"`
