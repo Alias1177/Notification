@@ -1,14 +1,16 @@
 package consumer
 
 import (
-	"Notification/config"
 	"context"
 	"fmt"
-	"github.com/segmentio/kafka-go"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/Alias1177/Notification/internal/infra/config"
+
+	"github.com/segmentio/kafka-go"
 )
 
 func KafkaConnect(cfg *config.Config, messageHandler func([]byte)) {

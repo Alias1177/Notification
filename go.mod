@@ -1,4 +1,4 @@
-module Notification
+module github.com/Alias1177/Notification
 
 go 1.24.0
 
