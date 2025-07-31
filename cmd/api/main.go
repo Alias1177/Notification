@@ -36,11 +36,10 @@ func main() {
 	// Инициализация зависимостей
 	notificationRepo := repository.NewMemoryRepository()
 	notificationService := service.NewNotificationService(notificationRepo)
-	emailService := service.NewEmailService()
 
 	// Создание handlers
-	notificationHandler := handlers.NewNotificationHandler(notificationService, emailService)
-	kafkaHandler := kafka.NewKafkaHandler(notificationService, emailService)
+	notificationHandler := handlers.NewNotificationHandler(notificationService, service.NewEmailService())
+	kafkaHandler := kafka.NewKafkaHandler(notificationService, service.NewEmailService())
 
 	// Запуск Kafka consumer
 	go func() {
