@@ -9,77 +9,155 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Copy files to server
-        uses: appleboy/scp-action@master
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_NAME }}
           key: ${{ secrets.SSH_KEY }}
           source: "."
           target: "/home/Notification"
+          overwrite: true
 
-      - name: Check Docker installation
-        uses: appleboy/ssh-action@master
+      - name: Check server environment
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_NAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd /home/Notification
+            set -e
             
-            # Проверка версии Docker и Docker Compose
-            docker --version
-            which docker-compose || echo "docker-compose not found"
-            docker compose version || echo "docker compose not found"
+            echo "=== Server Environment Check ==="
+            echo "Current user: $(whoami)"
+            echo "Current directory: $(pwd)"
+            echo "Home directory: $HOME"
+            
+            # Check Docker installation
+            echo "=== Docker Check ==="
+            docker --version || { echo "Docker not installed"; exit 1; }
+            
+            # Check Docker access
+            if ! docker ps &>/dev/null; then
+              echo "No Docker access. Checking groups..."
+              groups
+              echo "Adding user to docker group..."
+              sudo usermod -aG docker $USER || echo "Failed to add to docker group"
+              echo "You may need to logout/login or restart the SSH session"
+            else
+              echo "Docker access OK"
+              docker ps
+            fi
+            
+            # Check Docker Compose versions
+            echo "=== Docker Compose Check ==="
+            if command -v docker-compose &> /dev/null; then
+              echo "docker-compose version: $(docker-compose --version)"
+            else
+              echo "docker-compose not found"
+            fi
+            
+            if docker compose version &> /dev/null; then
+              echo "docker compose version: $(docker compose version)"
+            else
+              echo "docker compose not found"
+            fi
 
-      - name: Deploy on server
-        uses: appleboy/ssh-action@master
+      - name: Deploy application
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_NAME }}
           key: ${{ secrets.SSH_KEY }}
+          timeout: 30s
+          command_timeout: 15m
           script: |
-            cd /home/Notification
+            set -e
             
-            # Create .env file
-              echo "${{ secrets.ENV}}" > .env
+            echo "=== Starting Deployment ==="
+            
+            # Navigate to project directory
+            cd /home/Notification || { echo "Failed to cd to /home/Notification"; exit 1; }
+            echo "Current directory: $(pwd)"
+            
+            # List files to verify copy
+            echo "=== Files in directory ==="
+            ls -la
+            
+            # Create .env file with better error handling
+            echo "=== Creating .env file ==="
+            if [ -n "${{ secrets.ENV }}" ]; then
+              echo "${{ secrets.ENV }}" > .env
               chmod 600 .env
+              echo ".env file created successfully"
+            else
+              echo "Warning: ENV secret is empty"
+            fi
             
-            # Проверяем существование файла docker-compose
+            # Verify docker-compose.yml exists
             if [ ! -f "docker-compose.yml" ]; then
-              echo "docker-compose.yml not found!"
+              echo "ERROR: docker-compose.yml not found!"
+              echo "Files in current directory:"
               ls -la
               exit 1
             fi
             
-            # Используем docker-compose вместо docker compose, если доступен
+            echo "=== Docker Compose file found ==="
+            
+            # Choose Docker Compose command
+            COMPOSE_CMD=""
             if command -v docker-compose &> /dev/null; then
-              # Stop all running containers
-              docker-compose down
-            
-              # Build the containers
-              docker-compose build
-            
-              # Start containers
-              docker-compose up -d
-            
-              # Check status
-              sleep 5
-              docker-compose ps
+              COMPOSE_CMD="docker-compose"
+              echo "Using: docker-compose"
+            elif docker compose version &> /dev/null; then
+              COMPOSE_CMD="docker compose"
+              echo "Using: docker compose"
             else
-              # Попытаемся использовать docker compose (новый синтаксис)
-              # Stop all running containers
-              docker compose down
-            
-              # Build the containers
-              docker compose build
-            
-              # Start containers
-              docker compose up -d
-            
-              # Check status
-              sleep 5
-              docker compose ps
+              echo "ERROR: Neither docker-compose nor docker compose is available"
+              exit 1
             fi
+            
+            # Stop existing containers
+            echo "=== Stopping existing containers ==="
+            $COMPOSE_CMD down --remove-orphans || echo "No containers to stop"
+            
+            # Clean up old images (optional)
+            echo "=== Cleaning up old images ==="
+            docker image prune -f || echo "Failed to prune images"
+            
+            # Build containers
+            echo "=== Building containers ==="
+            $COMPOSE_CMD build --no-cache
+            
+            # Start containers
+            echo "=== Starting containers ==="
+            $COMPOSE_CMD up -d
+            
+            # Wait for containers to start
+            echo "=== Waiting for containers to start ==="
+            sleep 15
+            
+            # Check container status
+            echo "=== Container Status ==="
+            $COMPOSE_CMD ps
+            
+            # Show recent logs
+            echo "=== Recent Logs ==="
+            $COMPOSE_CMD logs --tail=50
+            
+            # Health check (if your services have health checks)
+            echo "=== Health Check ==="
+            for i in {1..5}; do
+              if $COMPOSE_CMD ps | grep -q "Up"; then
+                echo "Containers are running successfully"
+                break
+              else
+                echo "Attempt $i: Containers not ready yet, waiting..."
+                sleep 10
+              fi
+            done
+            
+            echo "=== Deployment Complete ==="
