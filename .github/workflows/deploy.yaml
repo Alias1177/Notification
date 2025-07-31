@@ -142,6 +142,10 @@ jobs:
             echo "=== Stopping existing containers ==="
             $COMPOSE_CMD down --remove-orphans || echo "No containers to stop"
             
+            # Force remove any conflicting containers
+            echo "=== Removing conflicting containers ==="
+            docker rm -f notification-service prometheus node-exporter grafana 2>/dev/null || echo "No conflicting containers to remove"
+            
             # Clean up unused images
             echo "=== Cleaning up unused images ==="
             docker image prune -f || echo "Image cleanup skipped"
