@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   notification-service:
-    build: .
+    build: docker
     container_name: notification-service
     restart: always
     ports:

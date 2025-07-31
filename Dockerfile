@@ -15,7 +15,7 @@ COPY go.sum ./
 RUN go mod download
 
 # Копирование исходного кода
-COPY . .
+COPY docker .
 
 # Сборка приложения
 RUN CGO_ENABLED=0 GOOS=linux go build -o notification-service ./cmd/api
