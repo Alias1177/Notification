@@ -2,7 +2,7 @@ name: Deploy Notification Service CI/CD
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "mainReadyTrade", "master" ]
   workflow_dispatch:
 
 jobs:
