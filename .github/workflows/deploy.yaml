@@ -21,6 +21,7 @@ jobs:
           source: "."
           target: "/home/Notification"
           overwrite: true
+          strip_components: 1
 
       - name: Check server environment
         uses: appleboy/ssh-action@v1.0.3
@@ -63,6 +64,29 @@ jobs:
             
             echo "=== Starting Deployment ==="
             cd /home/Notification || { echo "Failed to cd to /home/Notification"; exit 1; }
+            
+            # Fix file permissions and ownership
+            echo "=== Fixing file permissions ==="
+            sudo chown -R $USER:$USER /home/Notification || echo "Permission fix skipped"
+            chmod +x /home/Notification 2>/dev/null || echo "chmod skipped"
+            
+            # Verify Go files exist
+            echo "=== Verifying Go project files ==="
+            if [ ! -f "go.mod" ]; then
+              echo "ERROR: go.mod not found!"
+              echo "Files in current directory:"
+              ls -la
+              exit 1
+            fi
+            
+            if [ ! -f "go.sum" ]; then
+              echo "ERROR: go.sum not found!"
+              echo "Files in current directory:"
+              ls -la
+              exit 1
+            fi
+            
+            echo "✅ Go files found: go.mod and go.sum"
             
             # Create .env file
             echo "=== Creating .env file ==="
@@ -122,9 +146,9 @@ jobs:
             echo "=== Cleaning up unused images ==="
             docker image prune -f || echo "Image cleanup skipped"
             
-            # Build containers
+            # Build containers with proper context
             echo "=== Building containers ==="
-            $COMPOSE_CMD build --no-cache
+            DOCKER_BUILDKIT=1 $COMPOSE_CMD build --no-cache --progress=plain
             
             # Start containers
             echo "=== Starting containers ==="
