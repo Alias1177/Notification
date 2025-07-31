@@ -18,7 +18,7 @@ jobs:
           username: ${{ secrets.SSH_NAME }}
           key: ${{ secrets.SSH_KEY }}
           source: "."
-          target: "/opt/notification-service/Notification"
+          target: "/home/Notification"
 
       - name: Check Docker installation
         uses: appleboy/ssh-action@master
@@ -27,7 +27,7 @@ jobs:
           username: ${{ secrets.SSH_NAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd /opt/notification-service/Notification
+            cd /home/Notification
             
             # Проверка версии Docker и Docker Compose
             docker --version
@@ -41,7 +41,7 @@ jobs:
           username: ${{ secrets.SSH_NAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd /opt/notification-service/Notification
+            cd /home/Notification
             
             # Create .env file
               echo "${{ secrets.ENV}}" > .env
