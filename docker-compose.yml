@@ -12,5 +12,3 @@ services:
     volumes:
       - ./templates:/app/templates
       - ./.env:/app/.env
-
-volumes:
