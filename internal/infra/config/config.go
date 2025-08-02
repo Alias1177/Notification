@@ -1,14 +1,15 @@
 package config
 
 import (
-	"github.com/ilyakaznacheev/cleanenv"
 	"log"
+
+	"github.com/ilyakaznacheev/cleanenv"
 )
 
 type Config struct {
 	Secret       string `env:"SECRET"`
 	Mail         string `env:"MAIL"`
-	KafkaConnect string `env:"KAFKA_PROD"`
+	KafkaConnect string `env:"KAFKA_PROD" env-default:"kafka:9092"`
 	KafkaTopic   string `env:"KAFKA_TOPIC"`
 	KafkaGroup   string `env:"GROUPE"`
 }
