@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+docs/
+*.md
+
+# Scripts and tools
+scripts/
+Makefile
+.cursor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment
+.env*
+env.example
+
+# Test files
+*_test.go
+test-results/
+coverage.*
+
+# Build artifacts
+/bin/
+*.exe
+*.out
+*.bin
+
+# Temporary files
+*.tmp
+*.temp 
