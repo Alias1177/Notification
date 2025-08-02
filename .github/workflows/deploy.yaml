@@ -10,16 +10,13 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
-
       - name: Deploy on server
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_NAME }}@${{ secrets.SSH_HOST }} '
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_NAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
             cd /home/Notification
             
             echo "=== Starting Notification Service deployment ==="
@@ -95,4 +92,3 @@ jobs:
             docker-compose logs --tail=5 notification-service | grep -i error || echo "No errors found"
             
             echo "=== Notification Service deployment completed ==="
-          '
