@@ -10,33 +10,6 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Validate secrets
-        run: |
-          if [ -z "${{ secrets.SSH_HOST }}" ]; then
-            echo "❌ SSH_HOST secret is not set"
-            exit 1
-          fi
-          if [ -z "${{ secrets.SSH_NAME }}" ]; then
-            echo "❌ SSH_NAME secret is not set"
-            exit 1
-          fi
-          if [ -z "${{ secrets.SSH_KEY }}" ]; then
-            echo "❌ SSH_KEY secret is not set"
-            exit 1
-          fi
-          echo "✅ All required secrets are set"
-
-      - name: Check SSH connection
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_NAME }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            echo "SSH connection test successful"
-            whoami
-            pwd
-
       - name: Deploy on server
         uses: appleboy/ssh-action@master
         with:
@@ -52,17 +25,10 @@ jobs:
             echo "=== Saving current state ==="
             docker-compose ps
             
-            # Graceful shutdown существующих сервисов
-            echo "=== Graceful shutdown of existing services ==="
-            docker-compose down --timeout 30 || echo "Some services may not have stopped gracefully"
-            
-            # Удаляем старые контейнеры если есть проблемы
-            echo "=== Cleaning up old containers ==="
+            # Быстрая остановка сервисов
+            echo "=== Quick shutdown of existing services ==="
+            docker-compose down --timeout 10 || true
             docker-compose rm -f || true
-            
-            # Принудительно удаляем все контейнеры если есть проблемы с Docker Compose
-            echo "=== Force cleanup if Docker Compose has issues ==="
-            docker-compose down --remove-orphans || true
             docker system prune -f || true
             
             # Быстрая проверка портов
@@ -87,13 +53,9 @@ jobs:
               cp env.example .env || echo "No env.example found"
             fi
             
-            # Запускаем сервисы с новой версией
-            echo "=== Building and starting services ==="
-            if ! docker-compose up -d --build --force-recreate; then
-              echo "❌ Docker Compose failed, trying alternative approach"
-              echo "=== Starting service individually ==="
-              docker-compose up -d notification-service
-            fi
+            # Быстрая сборка и запуск
+            echo "=== Quick build and start ==="
+            DOCKER_BUILDKIT=1 docker-compose up -d --build --force-recreate || docker-compose up -d notification-service
             
             # Проверяем логи если есть проблемы
             echo "=== Checking logs for errors ==="
@@ -124,20 +86,9 @@ jobs:
               fi
             done
             
-            # Финальная проверка
-            echo "=== Final status check ==="
+            # Быстрая финальная проверка
+            echo "=== Quick final check ==="
             docker-compose ps
-            
-            # Проверяем логи на ошибки
-            echo "=== Checking for errors in logs ==="
-            docker-compose logs --tail=10 notification-service | grep -i error || echo "No errors found in recent logs"
-            
-            # Проверяем переменные окружения
-            echo "=== Checking environment variables ==="
-            docker-compose exec -T notification-service env | grep -E "(MAIL|SMTP|KAFKA)" || echo "No email/Kafka env vars found!"
-            
-            # Проверяем размер образа
-            echo "=== Checking image size ==="
-            docker images notification-service --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+            docker-compose logs --tail=5 notification-service | grep -i error || echo "No errors found"
             
             echo "=== Notification Service deployment completed ==="
