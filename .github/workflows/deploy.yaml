@@ -41,6 +41,7 @@ jobs:
             
             # Обновляем код с merge strategy
             echo "=== Updating code ==="
+            git config --global --add safe.directory /home/Notification
             git fetch origin
             git stash  # Сохраняем локальные изменения
             git pull origin main --rebase

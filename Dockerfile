@@ -22,7 +22,6 @@ COPY go.mod go.sum ./
 # Копируем только исходный код (без тестов)
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/
-COPY pkg/ ./pkg/
 
 # Сборка с максимальными оптимизациями
 RUN --mount=type=cache,target=/root/.cache/go-build \
