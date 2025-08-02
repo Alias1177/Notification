@@ -1,183 +1,120 @@
-name: Deploy Notification Service CI/CD
+name: Deploy Notification CI/CD
 
 on:
   push:
-    branches: [ "mainReadyTrade", "main" ]
-  workflow_dispatch:
+    branches: [ "main", "master" ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Copy files to server
-        uses: appleboy/scp-action@v0.1.7
+      - name: Deploy on server
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_NAME }}
-          key: ${{ secrets.SSH_KEY }}
-          source: "."
-          target: "/home/Notification"
-          overwrite: true
-          strip_components: 1
-
-      - name: Check server environment
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_NAME }}
-          key: ${{ secrets.SSH_KEY }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            set -e
+            cd /home/Notification
             
-            echo "=== Server Environment Check ==="
-            cd /home/Notification || { echo "Failed to cd to /home/Notification"; exit 1; }
+            echo "=== Starting Notification Service deployment ==="
             
-            echo "Current directory: $(pwd)"
-            echo "Files in directory:"
-            ls -la
+            # Сохраняем текущее состояние
+            echo "=== Saving current state ==="
+            docker-compose ps
             
-            # Check Docker
-            docker --version || { echo "Docker not installed"; exit 1; }
+            # Graceful shutdown существующих сервисов
+            echo "=== Graceful shutdown of existing services ==="
+            docker-compose down --timeout 30 || echo "Some services may not have stopped gracefully"
             
-            # Check Docker Compose versions
-            if command -v docker-compose &> /dev/null; then
-              echo "docker-compose available: $(docker-compose --version)"
+            # Удаляем старые контейнеры если есть проблемы
+            echo "=== Cleaning up old containers ==="
+            docker-compose rm -f || true
+            
+            # Принудительно удаляем все контейнеры если есть проблемы с Docker Compose
+            echo "=== Force cleanup if Docker Compose has issues ==="
+            docker-compose down --remove-orphans || true
+            docker system prune -f || true
+            
+            # Ждем освобождения портов
+            echo "=== Waiting for ports to be released ==="
+            sleep 10
+            
+            # Проверяем, что порты свободны
+            if lsof -i :8080 > /dev/null 2>&1; then
+              echo "❌ Port 8080 is still in use, forcing cleanup"
+              lsof -ti :8080 | xargs kill -9 || true
+              sleep 5
             fi
             
-            if docker compose version &> /dev/null; then
-              echo "docker compose available: $(docker compose version)"
-            fi
-
-      - name: Deploy application
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_NAME }}
-          key: ${{ secrets.SSH_KEY }}
-          timeout: 60s
-          command_timeout: 15m
-          script: |
-            set -e
+            # Обновляем код с merge strategy
+            echo "=== Updating code ==="
+            git fetch origin
+            git stash  # Сохраняем локальные изменения
+            git pull origin main --rebase
+            git stash pop || true  # Восстанавливаем если есть
             
-            echo "=== Starting Deployment ==="
-            cd /home/Notification || { echo "Failed to cd to /home/Notification"; exit 1; }
-            
-            # Fix file permissions and ownership
-            echo "=== Fixing file permissions ==="
-            sudo chown -R $USER:$USER /home/Notification || echo "Permission fix skipped"
-            chmod +x /home/Notification 2>/dev/null || echo "chmod skipped"
-            
-            # Verify Go files exist
-            echo "=== Verifying Go project files ==="
-            if [ ! -f "go.mod" ]; then
-              echo "ERROR: go.mod not found!"
-              echo "Files in current directory:"
-              ls -la
-              exit 1
+            # Проверяем конфигурацию
+            echo "=== Checking configuration ==="
+            if [ ! -f .env ]; then
+              echo "❌ .env file not found, copying from example"
+              cp env.example .env || echo "No env.example found"
             fi
             
-            if [ ! -f "go.sum" ]; then
-              echo "ERROR: go.sum not found!"
-              echo "Files in current directory:"
-              ls -la
-              exit 1
+            # Запускаем сервисы с новой версией
+            echo "=== Building and starting services ==="
+            if ! docker-compose up -d --build --force-recreate; then
+              echo "❌ Docker Compose failed, trying alternative approach"
+              echo "=== Starting service individually ==="
+              docker-compose up -d notification-service
             fi
             
-            echo "✅ Go files found: go.mod and go.sum"
+            # Проверяем логи если есть проблемы
+            echo "=== Checking logs for errors ==="
+            docker-compose logs --tail=10 || true
             
-            # Create .env file
-            echo "=== Creating .env file ==="
-            echo "${{ secrets.ENV }}" > .env
-            chmod 600 .env
-            echo ".env file created"
-            
-            # Check if docker-compose.yml exists in root
-            if [ -f "docker-compose.yml" ]; then
-              COMPOSE_FILE="docker-compose.yml"
-              WORK_DIR="."
-              echo "Found docker-compose.yml in root directory"
-            # Check if docker-compose.yml exists in docker folder
-            elif [ -f "docker/docker-compose.yml" ]; then
-              COMPOSE_FILE="docker/docker-compose.yml"
-              WORK_DIR="docker"
-              echo "Found docker-compose.yml in docker directory"
-              # Copy .env to docker directory
-              cp .env docker/
-            else
-              echo "ERROR: docker-compose.yml not found!"
-              echo "Checking common locations:"
-              find . -name "docker-compose.yml" -o -name "docker-compose.yaml" 2>/dev/null || echo "No compose files found"
-              echo "Files in current directory:"
-              ls -la
-              echo "Files in docker directory (if exists):"
-              ls -la docker/ 2>/dev/null || echo "No docker directory"
-              exit 1
-            fi
-            
-            echo "=== Using compose file: $COMPOSE_FILE ==="
-            echo "=== Working directory: $WORK_DIR ==="
-            
-            # Change to working directory if needed
-            if [ "$WORK_DIR" != "." ]; then
-              cd $WORK_DIR
-              echo "Changed to directory: $(pwd)"
-            fi
-            
-            # Determine Docker Compose command
-            if command -v docker-compose &> /dev/null; then
-              COMPOSE_CMD="docker-compose"
-              echo "Using: docker-compose"
-            elif docker compose version &> /dev/null; then
-              COMPOSE_CMD="docker compose"
-              echo "Using: docker compose"
-            else
-              echo "ERROR: Neither docker-compose nor docker compose is available!"
-              exit 1
-            fi
-            
-            # Stop existing containers
-            echo "=== Stopping existing containers ==="
-            $COMPOSE_CMD down --remove-orphans || echo "No containers to stop"
-            
-            # Force remove any conflicting containers
-            echo "=== Removing conflicting containers ==="
-            docker rm -f notification-service prometheus node-exporter grafana 2>/dev/null || echo "No conflicting containers to remove"
-            
-            # Clean up unused images
-            echo "=== Cleaning up unused images ==="
-            docker image prune -f || echo "Image cleanup skipped"
-            
-            # Build containers with proper context
-            echo "=== Building containers ==="
-            DOCKER_BUILDKIT=1 $COMPOSE_CMD build --no-cache --progress=plain
-            
-            # Start containers
-            echo "=== Starting containers ==="
-            $COMPOSE_CMD up -d
-            
-            # Wait for containers to start
-            echo "=== Waiting for containers to start ==="
+            # Ждем запуска и проверяем health
+            echo "=== Waiting for service startup ==="
             sleep 15
             
-            # Check container status
-            echo "=== Container Status ==="
-            $COMPOSE_CMD ps
+            # Проверяем статус контейнеров
+            echo "=== Checking container status ==="
+            docker-compose ps
             
-            # Show recent logs for debugging
-            echo "=== Recent Logs ==="
-            $COMPOSE_CMD logs --tail=30
+            # Health check после деплоя
+            echo "=== Post-deployment health check ==="
+            for i in {1..10}; do
+              if curl -f http://localhost:8080/health > /dev/null 2>&1; then
+                echo "✅ Notification Service is healthy after deployment"
+                break
+              else
+                echo "⏳ Waiting for service to become healthy... (attempt $i/10)"
+                if [ $i -eq 10 ]; then
+                  echo "❌ Service failed to become healthy after 10 attempts"
+                  echo "=== Checking logs for errors ==="
+                  docker-compose logs --tail=20 notification-service
+                  exit 1
+                fi
+                sleep 10
+              fi
+            done
             
-            # Verify containers are running
-            echo "=== Verifying deployment ==="
-            if $COMPOSE_CMD ps | grep -q "Up\|running"; then
-              echo "✅ Deployment successful! Containers are running."
-            else
-              echo "❌ Deployment may have issues. Check logs above."
-              $COMPOSE_CMD ps
-              exit 1
-            fi
+            # Финальная проверка
+            echo "=== Final status check ==="
+            docker-compose ps
             
-            echo "=== Deployment Complete ==="
+            # Проверяем логи на ошибки
+            echo "=== Checking for errors in logs ==="
+            docker-compose logs --tail=10 notification-service | grep -i error || echo "No errors found in recent logs"
+            
+            # Проверяем переменные окружения
+            echo "=== Checking environment variables ==="
+            docker-compose exec -T notification-service env | grep -E "(MAIL|SMTP|KAFKA)" || echo "No email/Kafka env vars found!"
+            
+            # Проверяем размер образа
+            echo "=== Checking image size ==="
+            docker images notification-service --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+            
+            echo "=== Notification Service deployment completed ==="
